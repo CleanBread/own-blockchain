@@ -5,7 +5,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon  src/index.ts"
+    "node_1": "nodemon  src/index.ts 3001 http://localhost:3001",
+    "node_2": "nodemon  src/index.ts 3002 http://localhost:3002",
+    "node_3": "nodemon  src/index.ts 3003 http://localhost:3003",
+    "node_4": "nodemon  src/index.ts 3004 http://localhost:3004"
   },
   "repository": {
     "type": "git",
@@ -22,6 +25,7 @@
     "@types/express": "^4.17.13",
     "@types/sha256": "^0.2.0",
     "@types/uuid": "^8.3.1",
+    "axios": "^0.21.1",
     "cors": "^2.8.5",
     "express": "^4.17.1",
     "nodemon": "^2.0.12",

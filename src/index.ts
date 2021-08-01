@@ -1,13 +1,17 @@
 import express, { Request } from 'express';
 import cors from 'cors';
+import axios from 'axios';
 
 import { IBlock, ITrx } from './types';
 import Blockchain from './blockchain';
 
 const app = express();
-const ether = new Blockchain();
 
-const port = 8080;
+const currentNodeUrl: string = process.argv[3];
+
+const ether = new Blockchain(currentNodeUrl);
+
+const port = process.argv[2] || 8080;
 
 app.use(express.json());
 app.use(
@@ -40,7 +44,6 @@ app.get('/mine', (_, res) => {
   };
 
   const nonce: number = ether.proofOfWork(lastBlockHash, currentBlockData);
-  console.log(nonce, 'nonce');
 
   const blockHash = ether.hashBlock(lastBlockHash, currentBlockData, nonce);
 
@@ -65,3 +68,75 @@ app.post('/transaction', (req: Request<{}, {}, ITrx>, res) => {
 
   res.send(`Trx will be added in ${blockIndex} block`);
 });
+
+app.post(
+  '/register-and-broadcast-node',
+  (req: Request<{}, {}, { newNodeUrl: string }>, res) => {
+    const newNodeUrl: string = req.body.newNodeUrl;
+
+    if (
+      !ether.netNodes.includes(newNodeUrl) &&
+      ether.currentNodeUrl !== newNodeUrl
+    ) {
+      if (ether.netNodes.length) {
+        const regNodesPromises: Array<Promise<any>> = [];
+
+        ether.netNodes.forEach((netNode) => {
+          regNodesPromises.push(
+            axios.post(`${netNode}/register-node`, {
+              newNodeUrl,
+            }),
+          );
+        });
+
+        Promise.all(regNodesPromises)
+          .then((data: any) => {
+            axios
+              .post(`${newNodeUrl}/register-node-bulk`, {
+                allNetNodes: [...ether.netNodes, ether.currentNodeUrl],
+              })
+              .then(() => {})
+              .catch(() => console.log('err register-node-bulk'));
+
+            ether.addNewNetworkNode(newNodeUrl);
+
+            res.send(`Node ${req.body.newNodeUrl} was added`);
+          })
+          .catch(() => {
+            console.log('err register-node');
+          });
+      } else {
+        axios
+          .post(`${newNodeUrl}/register-node-bulk`, {
+            allNetNodes: [...ether.netNodes, ether.currentNodeUrl],
+          })
+          .then(() => {})
+          .catch(() => console.log('err register-node-bulk'));
+
+        ether.addNewNetworkNode(newNodeUrl);
+
+        res.send(`Node ${req.body.newNodeUrl} was added`);
+      }
+    } else {
+      res.send('Node already added');
+    }
+  },
+);
+
+app.post(
+  '/register-node',
+  (req: Request<{}, {}, { newNodeUrl: string }>, res) => {
+    ether.addNewNetworkNode(req.body.newNodeUrl);
+
+    res.send('Ok register-node');
+  },
+);
+
+app.post(
+  '/register-node-bulk',
+  (req: Request<{}, {}, { allNetNodes: Array<string> }>, res) => {
+    ether.netNodes = req.body.allNetNodes;
+
+    res.send('Ok register-node-bulk');
+  },
+);
