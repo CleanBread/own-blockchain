@@ -7,8 +7,12 @@ export interface IBlock {
   previousBlockHash: string;
 }
 
-export interface ITrx {
+export interface INewTrx {
   amount: string | number;
   sender: string;
   recipient: string;
+}
+
+export interface ITrx extends INewTrx {
+  transactionId: string;
 }

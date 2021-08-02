@@ -1,4 +1,5 @@
 import sha256 from 'sha256';
+import { v4 as uuid } from 'uuid';
 
 import { IBlock, ITrx } from './types';
 
@@ -70,14 +71,19 @@ class Blockchain {
     amount: number | string,
     sender: string,
     recipient: string,
-  ): number {
+  ): ITrx {
     const newTrx: ITrx = {
       amount,
       sender,
       recipient,
+      transactionId: uuid().split('-').join(''),
     };
 
-    this.pendingTransactions.push(newTrx);
+    return newTrx;
+  }
+
+  addTransactionToPendingTransactions(tx: ITrx): number {
+    this.pendingTransactions.push(tx);
 
     return this.getLastBlock()['index'] + 1;
   }

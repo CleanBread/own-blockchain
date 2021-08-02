@@ -2,7 +2,7 @@ import express, { Request } from 'express';
 import cors from 'cors';
 import axios from 'axios';
 
-import { IBlock, ITrx } from './types';
+import { IBlock, ITrx, INewTrx } from './types';
 import Blockchain from './blockchain';
 
 const app = express();
@@ -47,7 +47,7 @@ app.get('/mine', (_, res) => {
 
   const blockHash = ether.hashBlock(lastBlockHash, currentBlockData, nonce);
 
-  ether.createNewTransaction(12.5, '00', 'For miner');
+  // ether.createNewTransaction(12.5, '00', 'For miner');
 
   const newBlock: IBlock = ether.createNewBlock(
     nonce,
@@ -55,18 +55,79 @@ app.get('/mine', (_, res) => {
     blockHash,
   );
 
-  res.send({
-    note: 'New block mined successfully',
-    block: newBlock,
+  const requestPromises: Array<Promise<any>> = [];
+
+  ether.netNodes.forEach((netNode: string) => {
+    requestPromises.push(
+      axios.post(`${netNode}/receive-new-block`, { newBlock }),
+    );
   });
+
+  Promise.all(requestPromises)
+    .then(() => {
+      res.send({
+        note: 'New block mined successfully',
+        block: newBlock,
+      });
+
+      axios.post(`${ether.currentNodeUrl}/transaction/broadcast`, {
+        amount: 12.5,
+        sender: '00',
+        recipient: 'For miner',
+      });
+    })
+    .catch(() => res.status(500).send('Something went wrong'));
 });
 
-app.post('/transaction', (req: Request<{}, {}, ITrx>, res) => {
+app.post(
+  '/receive-new-block',
+  (req: Request<{}, {}, { newBlock: IBlock }>, res) => {
+    const newBlock = req.body.newBlock;
+    const lastBlock = ether.getLastBlock();
+
+    if (
+      lastBlock.hash === newBlock.previousBlockHash &&
+      lastBlock.index + 1 === newBlock.index
+    ) {
+      ether.chain.push(newBlock);
+      ether.pendingTransactions = [];
+
+      res.send('New block received and accepted');
+    } else {
+      res.status(500).send('New block rejected');
+    }
+  },
+);
+
+app.post(
+  '/transaction',
+  (req: Request<{}, {}, { newTransaction: ITrx }>, res) => {
+    const { newTransaction } = req.body;
+
+    const blockIndex =
+      ether.addTransactionToPendingTransactions(newTransaction);
+
+    res.send(`Transaction will be aded in ${blockIndex} block`);
+  },
+);
+
+app.post('/transaction/broadcast', (req: Request<{}, {}, INewTrx>, res) => {
   const { amount, sender, recipient } = req.body;
+  const newTransaction = ether.createNewTransaction(amount, sender, recipient);
 
-  const blockIndex = ether.createNewTransaction(amount, sender, recipient);
+  ether.addTransactionToPendingTransactions(newTransaction);
 
-  res.send(`Trx will be added in ${blockIndex} block`);
+  const requestPromises: Array<Promise<any>> = [];
+
+  ether.netNodes.forEach((netNode: string) => {
+    requestPromises.push(
+      axios.post(`${netNode}/transaction`, { newTransaction }),
+    );
+  });
+
+  Promise.all(requestPromises)
+    .then(() => res.send('Transaction created and broadcast successfuly'))
+    .catch(() => res.status(500).send('Something went wrong'));
 });
 
 app.post(
