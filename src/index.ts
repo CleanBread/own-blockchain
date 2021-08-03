@@ -208,11 +208,13 @@ app.post(
   (req: Request<{}, {}, { allNetNodes: Array<string> }>, res) => {
     ether.netNodes = req.body.allNetNodes;
 
-    res.send('Ok register-node-bulk');
+    axios.get(`${ether.currentNodeUrl}/consensus`).then(() => {
+      res.send('Ok register-node-bulk');
+    });
   },
 );
 
-app.post('/consensus', (_, res) => {
+app.get('/consensus', (_, res) => {
   const requestPromises: Array<Promise<any>> = [];
 
   ether.netNodes.forEach((netNode) => {
@@ -233,8 +235,6 @@ app.post('/consensus', (_, res) => {
           newPendingTransactions = blockhain.pendingTransactions;
         }
       });
-
-      console.log(newLongestChain, ether.chain.length);
 
       if (
         !!!newLongestChain.length ||
