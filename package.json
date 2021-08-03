@@ -8,7 +8,8 @@
     "node_1": "nodemon  src/index.ts 3001 http://localhost:3001",
     "node_2": "nodemon  src/index.ts 3002 http://localhost:3002",
     "node_3": "nodemon  src/index.ts 3003 http://localhost:3003",
-    "node_4": "nodemon  src/index.ts 3004 http://localhost:3004"
+    "node_4": "nodemon  src/index.ts 3004 http://localhost:3004",
+    "testing": "nodemon src/test.ts"
   },
   "repository": {
     "type": "git",

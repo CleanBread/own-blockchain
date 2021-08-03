@@ -1,7 +1,7 @@
 import sha256 from 'sha256';
 import { v4 as uuid } from 'uuid';
 
-import { IBlock, ITrx } from './types';
+import { IBlock, ITrx, IBlockData } from './types';
 
 class Blockchain {
   public chain: Array<IBlock>;
@@ -90,7 +90,7 @@ class Blockchain {
 
   hashBlock(
     previousBlockHash: string,
-    currentBlockData: any,
+    currentBlockData: IBlockData,
     nonce: number,
   ): string {
     return sha256(
@@ -98,7 +98,7 @@ class Blockchain {
     );
   }
 
-  proofOfWork(previousBlockHash: string, currentBlockData: any): number {
+  proofOfWork(previousBlockHash: string, currentBlockData: IBlockData): number {
     let nonce = 0;
 
     let hash = this.hashBlock(previousBlockHash, currentBlockData, nonce);
@@ -109,6 +109,44 @@ class Blockchain {
     }
 
     return nonce;
+  }
+
+  chainIsValid(blockchain: Array<IBlock>): boolean {
+    let validChain: boolean = true;
+
+    for (let i = 1; i < blockchain.length; i++) {
+      const currentBlock = blockchain[i];
+      const prevBlock = blockchain[i - 1];
+      const blockHash = this.hashBlock(
+        prevBlock.hash,
+        {
+          transactions: currentBlock.transactions,
+          index: currentBlock.index,
+        },
+        currentBlock.nonce,
+      );
+      const genesisBlock = blockchain[0];
+
+      if (
+        genesisBlock.nonce !== 100 ||
+        genesisBlock.previousBlockHash !== '0' ||
+        genesisBlock.hash !== '0' ||
+        genesisBlock.transactions.length
+      ) {
+        validChain = false;
+        break;
+      }
+
+      if (
+        blockHash.substring(0, 4) !== '0000' ||
+        currentBlock.previousBlockHash !== prevBlock.hash
+      ) {
+        validChain = false;
+        break;
+      }
+    }
+
+    return validChain;
   }
 }
 

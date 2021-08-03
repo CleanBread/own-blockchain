@@ -2,7 +2,7 @@ import express, { Request } from 'express';
 import cors from 'cors';
 import axios from 'axios';
 
-import { IBlock, ITrx, INewTrx } from './types';
+import { IBlock, ITrx, INewTrx, IBlockchain } from './types';
 import Blockchain from './blockchain';
 
 const app = express();
@@ -47,36 +47,46 @@ app.get('/mine', (_, res) => {
 
   const blockHash = ether.hashBlock(lastBlockHash, currentBlockData, nonce);
 
-  // ether.createNewTransaction(12.5, '00', 'For miner');
-
   const newBlock: IBlock = ether.createNewBlock(
     nonce,
     lastBlockHash,
     blockHash,
   );
 
-  const requestPromises: Array<Promise<any>> = [];
+  if (ether.netNodes.length) {
+    const requestPromises: Array<Promise<any>> = [];
 
-  ether.netNodes.forEach((netNode: string) => {
-    requestPromises.push(
-      axios.post(`${netNode}/receive-new-block`, { newBlock }),
-    );
-  });
+    ether.netNodes.forEach((netNode: string) => {
+      requestPromises.push(
+        axios.post(`${netNode}/receive-new-block`, { newBlock }),
+      );
+    });
 
-  Promise.all(requestPromises)
-    .then(() => {
-      res.send({
-        note: 'New block mined successfully',
-        block: newBlock,
-      });
+    Promise.all(requestPromises)
+      .then(() => {
+        res.send({
+          note: 'New block mined successfully',
+          block: newBlock,
+        });
 
-      axios.post(`${ether.currentNodeUrl}/transaction/broadcast`, {
-        amount: 12.5,
-        sender: '00',
-        recipient: 'For miner',
-      });
-    })
-    .catch(() => res.status(500).send('Something went wrong'));
+        axios.post(`${ether.currentNodeUrl}/transaction/broadcast`, {
+          amount: 12.5,
+          sender: '00',
+          recipient: 'For miner',
+        });
+      })
+      .catch(() => res.status(500).send('Something went wrong'));
+  } else {
+    axios.post(`${ether.currentNodeUrl}/transaction/broadcast`, {
+      amount: 12.5,
+      sender: '00',
+      recipient: 'For miner',
+    });
+    res.send({
+      note: 'New block mined successfully empty',
+      block: newBlock,
+    });
+  }
 });
 
 app.post(
@@ -201,3 +211,44 @@ app.post(
     res.send('Ok register-node-bulk');
   },
 );
+
+app.post('/consensus', (_, res) => {
+  const requestPromises: Array<Promise<any>> = [];
+
+  ether.netNodes.forEach((netNode) => {
+    requestPromises.push(axios.get(`${netNode}/blockchain`));
+  });
+
+  Promise.all(requestPromises)
+    .then((blockchains: any) => {
+      let maxChainLength = ether.chain.length;
+      let newLongestChain: Array<IBlock> = [];
+      let newPendingTransactions: Array<ITrx> = [];
+
+      blockchains.forEach(({ data }: any) => {
+        const blockhain: IBlockchain = data;
+        if (blockhain.chain.length > maxChainLength) {
+          maxChainLength = blockhain.chain.length;
+          newLongestChain = blockhain.chain;
+          newPendingTransactions = blockhain.pendingTransactions;
+        }
+      });
+
+      console.log(newLongestChain, ether.chain.length);
+
+      if (
+        !!!newLongestChain.length ||
+        (newLongestChain.length && !ether.chainIsValid(newLongestChain))
+      ) {
+        res.send('Current chain has not be replaced');
+      } else {
+        ether.chain = newLongestChain;
+        ether.pendingTransactions = newPendingTransactions;
+
+        res.send('This chain has been replaced');
+      }
+    })
+    .catch(() => {
+      res.status(500).send('something went wrong');
+    });
+});
